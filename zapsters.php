@@ -96,11 +96,12 @@ add_action( 'admin_init', 'zapsters_settings_init' );
 
 function zapsters_field_relay_cb( $args) {
   $options = get_option( 'zapsters_options' );
+  $relay = $options[ $args['label_for'] ] ?? "";
   ?>
   <textarea rows="2" cols="70"
     id="<?php echo esc_attr( $args['label_for'] ); ?>"
     name="zapsters_options[<?php echo esc_attr( $args['label_for'] ); ?>]"
-  ><?php echo esc_html( $options[ $args['label_for'] ] );?></textarea>
+  ><?php echo esc_html( $relay );?></textarea>
   <?php
 }
 
