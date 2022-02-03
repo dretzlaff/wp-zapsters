@@ -13,7 +13,7 @@ define('ZAPSTERS_ROUTE', 'zapdata');
 define('ZAPSTERS_DB_VERSION', '0.4');
 
 function zapsters_activate() {
-	add_option('zapsters_options');
+  add_option('zapsters_options');
   add_option('zapsters_db_version');
 }
 register_activation_hook( __FILE__, 'zapsters_activate' );
@@ -24,40 +24,40 @@ function zapsters_zapdata_table_name() {
 }
 
 function zapsters_dbsetup() {
-	$current_version = get_option('zapsters_db_version');
-	if ($current_verison == ZAPSTERS_DB_VERSION) {
-		return;
-	}
+  $current_version = get_option('zapsters_db_version');
+  if ($current_verison == ZAPSTERS_DB_VERSION) {
+    return;
+  }
 
-	global $wpdb;
+  global $wpdb;
   $table_name = zapsters_zapdata_table_name();
-	$charset_collate = $wpdb->get_charset_collate();
+  $charset_collate = $wpdb->get_charset_collate();
 
-	$sql = "CREATE TABLE $table_name (
-		id mediumint(9) NOT NULL AUTO_INCREMENT,
-		time timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
-		client_ip tinytext,
-		method tinytext,
+  $sql = "CREATE TABLE $table_name (
+    id mediumint(9) NOT NULL AUTO_INCREMENT,
+    time timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    client_ip tinytext,
+    method tinytext,
     request_body mediumtext,
-		request_headers mediumtext,
+    request_headers mediumtext,
     response_code smallint,
     response_body mediumtext,
     response_headers mediumtext,
     besteffort_response_code smallint,
     besteffort_response_body mediumtext,
     besteffort_response_headers mediumtext,
-		PRIMARY KEY  (id)
-	) $charset_collate;";
+    PRIMARY KEY  (id)
+  ) $charset_collate;";
 
-	require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
-	dbDelta( $sql );
+  require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+  dbDelta( $sql );
 
-	update_option('zapsters_db_version', ZAPSTERS_DB_VERSION);
+  update_option('zapsters_db_version', ZAPSTERS_DB_VERSION);
 }
 add_action( 'plugins_loaded', 'zapsters_dbsetup' );
 
 function zapsters_uninstall() {
-	delete_option('zapsters_options');
+  delete_option('zapsters_options');
 }
 register_uninstall_hook( __FILE__, 'zapsters_uninstall' );
 
@@ -69,9 +69,9 @@ function zapsters_settings_init() {
     'zapsters_section_options_cb',
     'zapsters'
   );
-	add_settings_field(
-		'zapsters_field_relay_primary', __( 'Primary' ),
-		'zapsters_field_relay_cb',
+  add_settings_field(
+    'zapsters_field_relay_primary', __( 'Primary' ),
+    'zapsters_field_relay_cb',
     'zapsters',
     'zapsters_section_relay',
     array(
@@ -79,9 +79,9 @@ function zapsters_settings_init() {
       'class' => 'wporg_row',
     )
   );
-	add_settings_field(
-		'zapsters_field_relay_besteffort', __( 'Best Effort' ),
-		'zapsters_field_relay_cb',
+  add_settings_field(
+    'zapsters_field_relay_besteffort', __( 'Best Effort' ),
+    'zapsters_field_relay_cb',
     'zapsters',
     'zapsters_section_relay',
     array(
@@ -95,24 +95,24 @@ add_action( 'admin_init', 'zapsters_settings_init' );
 function zapsters_field_relay_cb( $args) {
   $options = get_option( 'zapsters_options' );
   ?>
-	<textarea rows="2" cols="70"
+  <textarea rows="2" cols="70"
     id="<?php echo esc_attr( $args['label_for'] ); ?>"
     name="zapsters_options[<?php echo esc_attr( $args['label_for'] ); ?>]"
-	><?php echo esc_html( $options[ $args['label_for'] ] );?></textarea>
+  ><?php echo esc_html( $options[ $args['label_for'] ] );?></textarea>
   <?php
 }
 
 function zapsters_section_options_cb( $args ) {
-	?><p id="<?php echo esc_attr( $args['id'] ); ?>">
-		This plugin has a URL for receiving DeroZap notifications at
-		<?php echo site_url() . '/wp-json/' . ZAPSTERS_NAMESPACE . '/' . ZAPSTERS_ROUTE ?>.
-		It relays these notifications to the endpoint(s) configured here. The primary
-		endpoint's response will be returned to the DeroZap box (so errors can be retried),
-		and the best effort endpoint's response will simply be logged.
+  ?><p id="<?php echo esc_attr( $args['id'] ); ?>">
+    This plugin has a URL for receiving DeroZap notifications at
+    <?php echo site_url() . '/wp-json/' . ZAPSTERS_NAMESPACE . '/' . ZAPSTERS_ROUTE ?>.
+    It relays these notifications to the endpoint(s) configured here. The primary
+    endpoint's response will be returned to the DeroZap box (so errors can be retried),
+    and the best effort endpoint's response will simply be logged.
 
-		<p>The <a href="https://www.active4.me/">Active4.me</a> URL is:
-		https://www.active4.me/api/dero/v1
-	<?php
+    <p>The <a href="https://www.active4.me/">Active4.me</a> URL is:
+    https://www.active4.me/api/dero/v1
+  <?php
 }
 
 function zapsters_page_html() {
@@ -121,10 +121,10 @@ function zapsters_page_html() {
   }
   if ( isset( $_GET['settings-updated'] ) ) {
     add_settings_error( 
-			'zapsters_messages',
-			'zapster_message',
-			__( 'Settings Saved', 'zapsters' ),
-			'updated' );
+      'zapsters_messages',
+      'zapster_message',
+      __( 'Settings Saved', 'zapsters' ),
+      'updated' );
   }
   settings_errors( 'zapsters_messages' );
   ?>
