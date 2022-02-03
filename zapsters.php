@@ -57,6 +57,8 @@ function zapsters_dbsetup() {
 add_action( 'plugins_loaded', 'zapsters_dbsetup' );
 
 function zapsters_uninstall() {
+  global $wpdb;
+  $wpdb->query("DROP TABLE IF EXISTS " . zapsters_zapdata_table_name());
   delete_option('zapsters_options');
 }
 register_uninstall_hook( __FILE__, 'zapsters_uninstall' );
