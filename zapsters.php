@@ -232,4 +232,9 @@ add_action( 'rest_api_init', function () {
   ) );
 } );
 
+add_filter( 'rest_url_prefix', 'zapsters_api_prefix' );
+function zapsters_api_prefix() {
+  return "api";
+}
+
 ?>
