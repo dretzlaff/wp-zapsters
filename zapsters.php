@@ -5,7 +5,7 @@
  *
  * Description: Relays DeroZap notifications to one or more endpoints.
  * Author: <a href="mailto:dretzlaff@gmail.com">Dan Retzlaff</a>
- * Version: 0.2
+ * Version: 0.3
  */
 
 define('ZAPSTERS_NAMESPACE', 'zapsters/v1');
@@ -108,7 +108,7 @@ function zapsters_field_relay_cb( $args) {
 function zapsters_section_options_cb( $args ) {
   ?><p id="<?php echo esc_attr( $args['id'] ); ?>">
     This plugin has a URL for receiving DeroZap notifications at
-    <?php echo site_url() . '/wp-json/' . ZAPSTERS_NAMESPACE . '/' . ZAPSTERS_ROUTE ?>.
+    <?php echo site_url() . '/' . rest_get_url_prefix() . '/' . ZAPSTERS_NAMESPACE . '/' . ZAPSTERS_ROUTE ?>.
     It relays these notifications to the endpoint(s) configured here. The primary
     endpoint's response will be returned to the DeroZap box (so errors can be retried),
     and the best effort endpoint's response will simply be logged.
