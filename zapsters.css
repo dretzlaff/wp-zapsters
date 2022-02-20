@@ -1,0 +1,13 @@
+#zapdata {
+  text-align: center;
+  border-collapse: collapse;
+  width: 800px;
+}
+#zapdata td, #zapdata th {
+  border: 1px solid black;
+  padding: 3px;
+}
+#zapdata th {
+  background: #2271b1;
+  color: white;
+}

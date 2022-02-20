@@ -9,8 +9,9 @@
  */
 
 define('ZAPSTERS_NAMESPACE', 'zapsters/v1');
-define('ZAPSTERS_ROUTE', 'zapdata');
-define('ZAPSTERS_DB_VERSION', '0.4');
+define('ZAPSTERS_ZAPDATA', 'zapdata');
+define('ZAPSTERS_RAWDATA', 'rawdata');
+define('ZAPSTERS_DB_VERSION', '0.5');
 
 function zapsters_activate() {
   add_option('zapsters_options');
@@ -36,16 +37,11 @@ function zapsters_dbsetup() {
   $sql = "CREATE TABLE $table_name (
     id mediumint(9) NOT NULL AUTO_INCREMENT,
     time timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    client_ip tinytext,
-    method tinytext,
     request_body mediumtext,
-    request_headers mediumtext,
     response_code smallint,
     response_body mediumtext,
-    response_headers mediumtext,
     besteffort_response_code smallint,
     besteffort_response_body mediumtext,
-    besteffort_response_headers mediumtext,
     PRIMARY KEY  (id)
   ) $charset_collate;";
 
@@ -105,10 +101,14 @@ function zapsters_field_relay_cb( $args) {
   <?php
 }
 
+function zapsters_endpoint($route) {
+  return site_url() . '/' . rest_get_url_prefix() . '/' . ZAPSTERS_NAMESPACE . '/' . $route;
+}
+
 function zapsters_section_options_cb( $args ) {
   ?><p id="<?php echo esc_attr( $args['id'] ); ?>">
-    This plugin has a URL for receiving DeroZap notifications at
-    <?php echo site_url() . '/' . rest_get_url_prefix() . '/' . ZAPSTERS_NAMESPACE . '/' . ZAPSTERS_ROUTE ?>.
+    This plugin has a URL for receiving DeroZap POST notifications at
+    <a href="<?php echo zapsters_endpoint(ZAPSTERS_ZAPDATA); ?>"><?php echo zapsters_endpoint(ZAPSTERS_ZAPDATA) ?></a>.
     It relays these notifications to the endpoint(s) configured here. The primary
     endpoint's response will be returned to the DeroZap box (so errors can be retried),
     and the best effort endpoint's response will simply be logged.
@@ -117,6 +117,19 @@ function zapsters_section_options_cb( $args ) {
     https://www.active4.me/api/dero/v1
   <?php
 }
+
+function zapsters_format_range($array) {
+  if (count($array) == 0) return "";
+  if (count($array) == 1) return $array[0];
+  return min($array) . " - " . max($array);
+}
+
+function zapsters_enqueue_style($hook) {
+  if (strpos($hook, 'zapsters')) {
+    wp_enqueue_style( 'zapsters_style', plugin_dir_url( __FILE__ ) . 'zapsters.css' );
+  }
+}
+add_action( 'admin_enqueue_scripts', 'zapsters_enqueue_style' );
 
 function zapsters_page_html() {
   if (!current_user_can('manage_options')) {
@@ -133,25 +146,42 @@ function zapsters_page_html() {
   ?>
   <div class="wrap">
       <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
-      <h2>Recent Zap Data</h2>
-      <table border="1" cellspacing="0">
+      <h2>Recent Zap Data (<a href="<?php echo zapsters_endpoint(ZAPSTERS_RAWDATA); ?>?max_count=10&from_id=-1">raw</a>)</h2>
+      <table id="zapdata">
         <tr>
-          <th>Time</th><th>Client IP</th><th>Method</th>
-          <th>Request Body</th><th>Request Headers</th>
+          <th>ID</th>
+          <th>Request Time</th>
+          <th>Event Times</th>
+          <th>Battery Voltages</th>
+          <th>Status Events</th>
+          <th>Zaps</th>
         </tr>
         <?php
           global $wpdb;
           $sql = 
-            "SELECT * FROM " . zapsters_zapdata_table_name() . 
-            " ORDER BY id DESC LIMIT 10";
+            "SELECT * FROM " . zapsters_zapdata_table_name() . " ORDER BY id DESC LIMIT 10";
           foreach ($wpdb->get_results($sql) as $row) {
+            $parsed = array();
+            $voltages = array();
+            $dateTimes = array();
+            parse_str($row->request_body, $parsed);
+            $statusEventCount = intval( $parsed['statusEventCount'] ?? "0" );
+            $bikeEventCount = intval( $parsed['bikeEventCount'] ?? "0" );
+            for ($i = 0; $i < $statusEventCount; $i++) {
+              $dateTimes[] = date("h:i:s", intval( $parsed['DateTime' . $i] ));
+              $voltages[] = floatval( $parsed['BatteryVoltage' . $i] );
+            }
+            for ($i = 0; $i < $bikeEventCount; $i++) {
+              $dateTimes[] = date("h:i:s", intval( $parsed['BikeDateTime' . $i] ));
+            }
             ?>
             <tr>
-              <td><?php echo esc_html( $row->time ); ?></td>
-              <td><?php echo esc_html( $row->client_ip ); ?></td>
-              <td><?php echo esc_html( $row->method ); ?></td>
-              <td><?php echo esc_html( $row->request_body ); ?></td>
-              <td><?php echo esc_html( $row->request_headers ); ?></td>
+              <td><?php echo $row->id; ?></td>
+              <td><?php echo $row->time; ?></td>
+              <td><?php echo zapsters_format_range($dateTimes); ?></td>
+              <td><?php echo zapsters_format_range($voltages); ?></td>
+              <td><?php echo $statusEventCount; ?></td>
+              <td><?php echo $bikeEventCount; ?></td>
             </tr>
             <?php
           }
@@ -180,57 +210,75 @@ function zapsters_page() {
 }
 add_action('admin_menu', 'zapsters_page');
 
-function zapsters_get_client_ip() {
-  if ( ! empty( $_SERVER['HTTP_CLIENT_IP'] ) ) {
-    return $_SERVER['HTTP_CLIENT_IP'];
-  } elseif ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
-    return $_SERVER['HTTP_X_FORWARDED_FOR'];
-  } else {
-    return $_SERVER['REMOTE_ADDR'];
-  }
-}
-
 function zapsters_zapdata_request( WP_REST_Request $request ) {
-  $body = $request->get_body();
-  $request_headers = "";
-  foreach ($request->get_headers() as $name => $values) {
-    foreach ($values as $value) {
-      $request_headers .= "$name=$value\n";
+  global $wpdb;
+  $dbdata = array('request_body' => $request->get_body());
+
+  # We add an extra "norelay" param to relayed requests to avoid recursion. 
+  if ($request->has_param('norelay')) {
+    http_response_code(200);
+    echo "ignoring request with norelay param\n";
+    $wpdb->insert(zapsters_zapdata_table_name(), $dbdata);
+    exit();
+  }
+
+  $zapsters_options = get_option( 'zapsters_options' );
+  $post_args = array('body' => $request->get_body() . "&norelay");
+
+  $primary_url = $zapsters_options[ 'zapsters_field_relay_primary' ];
+  if (strlen($primary_url) > 0) {
+    $response = wp_remote_post($primary_url, $post_args);
+    if (is_wp_error($response)) {
+      http_response_code(500);
+      $dbdata['response_body'] = 'WP_Error: ' . $response->get_error_message();
+    } else {
+      $response_code = $response['response']['code'];
+      http_response_code($response_code);
+      echo $response['body'];
+      $dbdata['response_code'] = $response_code;
+      $dbdata['response_body'] = $response['body'];
     }
   }
 
-  // TODO: get from real response
-  $response_code = 200;
-  $response_body = "OK";
-  $response_headers = array();
-  $response_headers[] = "Content-Type: text/plain";
+  $besteffort_url = $zapsters_options[ 'zapsters_field_relay_besteffort' ];
+  if (strlen($besteffort_url) > 0) {
+    $besteffort_response = wp_remote_post($besteffort_url, $post_args);
+    if (is_wp_error($besteffort_response)) {
+      $dbdata['besteffort_response_body'] = 'WP_Error: ' . $response->get_error_message();
+    } else {
+      $dbdata['besteffort_response_code'] = $besteffort_response['response']['code'];
+      $dbdata['besteffort_response_body'] = $besteffort_response['body'];
+    }
+  }
 
-  $dbdata = array(
-    'client_ip' => zapsters_get_client_ip(),
-    'method' => $request->get_method(),
-    'request_body' => $request->get_body(),
-    'request_headers' => $request_headers,
-    'response_code' => $response_code,
-    'response_body' => $response_body,
-    'response_headers' => join('\n', $response_headers),
-  );
+  $wpdb->insert(zapsters_zapdata_table_name(), $dbdata);
+  exit();
+}
+function zapsters_rawdata_request( WP_REST_Request $request ) {
+  $sql = "SELECT * FROM " . zapsters_zapdata_table_name();
+  $fromId = $request->get_param('from_id');
+  if ($fromId > 0) $sql .= " WHERE id < " . intval($fromId);
+  $sql .= " ORDER BY id DESC";
+  $maxCount = $request->get_param('max_count');
+  if ($maxCount > 0) $sql .= " LIMIT " . intval($maxCount);
 
   global $wpdb;
-  $wpdb ->insert(zapsters_zapdata_table_name(), $dbdata);
-
-  http_response_code($response_code);
-  foreach ($response_headers as $response_header) {
-    header($response_header);
+  foreach ($wpdb->get_results($sql) as $row) {
+    print json_encode($row, JSON_PRETTY_PRINT);
   }
-  echo $response_body;
   exit();
 }
 add_action( 'rest_api_init', function () {
-  register_rest_route( ZAPSTERS_NAMESPACE, ZAPSTERS_ROUTE, array(
-    'methods' => array('GET', 'POST'),
+  register_rest_route( ZAPSTERS_NAMESPACE, ZAPSTERS_ZAPDATA, array(
+    'methods' => array('POST'),
     'callback' => 'zapsters_zapdata_request',
   ) );
+  register_rest_route( ZAPSTERS_NAMESPACE, ZAPSTERS_RAWDATA, array(
+    'methods' => array('GET'),
+    'callback' => 'zapsters_rawdata_request',
+  ) );
 } );
+
 
 add_filter( 'rest_url_prefix', 'zapsters_api_prefix' );
 function zapsters_api_prefix() {
