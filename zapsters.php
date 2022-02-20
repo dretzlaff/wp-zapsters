@@ -147,7 +147,7 @@ function zapsters_endpoint() {
 
 function zapsters_zapdata_rows( $row_count = -1 ) {
   $sql = "SELECT * FROM " . zapsters_table() . " ORDER BY id DESC";
-  if ($row_count > 0) $sql .= " LIMIT $row_count";
+  if ($row_count > 0) $sql .= " LIMIT " . intval($row_count); # intval to sanitize
   global $wpdb;
   return $wpdb->get_results($sql);
 }
@@ -217,7 +217,7 @@ function zapsters_page_html() {
   </div>
   <?php
 }
-function zapsters_page() {
+function zapsters_add_page() {
   add_submenu_page(
     'tools.php',
     'Zapsters',
@@ -226,9 +226,10 @@ function zapsters_page() {
     'zapsters',
     'zapsters_page_html'
   );
+  # Whitelist this zapsters page so options.php doesn't reject our form data.
   add_allowed_options( array( 'zapsters' => array() ) );
 }
-add_action('admin_menu', 'zapsters_page');
+add_action('admin_menu', 'zapsters_add_page');
 
 /**************************************************
  * REST endpoint for recording and serving zap data.
@@ -243,12 +244,8 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
 
   # Show a raw data dump in JSON.
   if ($request->get_method() == "GET") {
-    if ( !is_user_logged_in() ) {
-      http_response_code(401);
-      echo "not logged in";
-    }
     $maxCount = $request->get_param('max_count');
-    foreach (zapsters_zapdata_rows(intval($maxCount)) as $row) {
+    foreach (zapsters_zapdata_rows($maxCount) as $row) {
       print json_encode($row, JSON_PRETTY_PRINT);
     }
     exit();
@@ -318,7 +315,7 @@ add_action( 'rest_api_init', function () {
   ) );
 } );
 
-
+# The DeroZap box doesn't accept URLs with dashes, so use "api" instead of "wp-json".
 add_filter( 'rest_url_prefix', 'zapsters_api_prefix' );
 function zapsters_api_prefix() {
   return "api";
