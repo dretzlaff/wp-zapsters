@@ -42,7 +42,7 @@ function zapsters_dbsetup() {
 
   $sql = "CREATE TABLE $table_name (
     id mediumint(9) NOT NULL AUTO_INCREMENT,
-    time timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    request_time timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
     request_body mediumtext,
     response_code smallint,
     response_body mediumtext,
@@ -197,7 +197,7 @@ function zapsters_page_html() {
             ?>
             <tr>
               <td><?php echo $row->id; ?></td>
-              <td><?php echo $row->time; ?></td>
+              <td><?php echo $row->request_time; ?></td>
               <td><?php echo zapsters_format_range($dateTimes); ?></td>
               <td><?php echo zapsters_format_range($voltages); ?></td>
               <td><?php echo $statusEventCount; ?></td>
@@ -301,7 +301,7 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
 
   # Only keep 1 year of data to limit database size.
   $delete_sql = "DELETE FROM " . zapsters_table();
-  $delete_sql .= " WHERE time < DATE_SUB(NOW(), INTERVAL 1 YEAR)";
+  $delete_sql .= " WHERE request_time < DATE_SUB(NOW(), INTERVAL 1 YEAR)";
   $wpdb->query($delete_sql);
   exit();
 }
