@@ -89,7 +89,7 @@ function zapsters_settings_init() {
   );
   add_settings_field(
     'zapsters_field_relay_primary', __( 'Primary' ),
-    'zapsters_field_relay_cb',
+    'zapsters_field_text_cb',
     'zapsters',
     'zapsters_section_relay',
     array(
@@ -99,7 +99,7 @@ function zapsters_settings_init() {
   );
   add_settings_field(
     'zapsters_field_relay_besteffort', __( 'Best Effort' ),
-    'zapsters_field_relay_cb',
+    'zapsters_field_text_cb',
     'zapsters',
     'zapsters_section_relay',
     array(
@@ -107,34 +107,48 @@ function zapsters_settings_init() {
       'class' => 'wporg_row',
     )
   );
+  add_settings_field(
+    'zapsters_field_require_station', __( 'Require Station ID' ),
+    'zapsters_field_text_cb',
+    'zapsters',
+    'zapsters_section_relay',
+    array(
+      'label_for' => 'zapsters_field_require_station',
+      'class' => 'wporg_row',
+    )
+  );
 }
 add_action( 'admin_init', 'zapsters_settings_init' );
 
-function zapsters_field_relay_cb( $args) {
-  $options = get_option( 'zapsters_options' );
-  $relay = $options[ $args['label_for'] ] ?? "";
+function zapsters_field_text_cb( $args ) {
+  $id = $args['label_for'];
+  $esc_id = esc_attr( $id );
+  $value = get_option( 'zapsters_options' )[$id] ?? "";
   ?>
   <textarea rows="2" cols="70"
-    id="<?php echo esc_attr( $args['label_for'] ); ?>"
-    name="zapsters_options[<?php echo esc_attr( $args['label_for'] ); ?>]"
-  ><?php echo esc_html( $relay );?></textarea>
+    id="<?php echo $esc_id; ?>"
+    name="zapsters_options[<?php echo $esc_id; ?>]"
+  ><?php echo esc_html( $value );?></textarea>
   <?php
 }
 
 function zapsters_section_options_cb( $args ) {
   ?><p id="<?php echo esc_attr( $args['id'] ); ?>">
     This plugin has a URL for receiving DeroZap POST notifications at
-    <a href="<?php echo zapsters_endpoint(); ?>"><?php echo zapsters_endpoint() ?></a>.
-    It relays these notifications to the endpoint(s) configured here. The primary
-    endpoint's response will be returned to the DeroZap box (so errors can be retried),
-    and the best effort endpoint's response will simply be logged.
+    <a href="<?php echo zapsters_endpoint(); ?>"><?php echo zapsters_endpoint() ?></a>.  
+    It relays notifications to the endpoint(s) configured here. The primary endpoint's 
+    response will be returned to the DeroZap box (so errors can be retried), and the best 
+    effort endpoint's response will simply be recorded.
 
-    <p>The <a href="https://www.active4.me/">Active4.me</a> URL is:
-    https://www.active4.me/api/dero/v1
+    <p>If a required station ID is configured, notifications with missing or mismatched
+    IDs are ignored. This is a basic authentication measure.
+
+    <p>The <a href="https://www.active4.me/">Active4.me</a> URL is
+    <a href="https://www.active4.me/api/dero/v1">https://www.active4.me/api/dero/v1</a>.
   <?php
 }
 
-function zapsters_format_range($array) {
+function zapsters_format_range( $array ) {
   if (count($array) == 0) return "";
   if (count($array) == 1) return $array[0];
   return min($array) . " - " . max($array);
@@ -234,6 +248,7 @@ add_action('admin_menu', 'zapsters_page');
 
 function zapsters_zapdata_request( WP_REST_Request $request ) {
   global $wpdb;
+  $options = get_option( 'zapsters_options' );
 
   # Show a raw data dump in JSON.
   if ($request->get_method() == "GET") {
@@ -251,6 +266,14 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
     exit();
   }
 
+  # If configured to require a specific StationId, ignore without recording requests without it.
+  $required_station = $options['zapsters_field_require_station'] ?? "";
+  if (!empty($required_station) && $required_station != $request->get_param('StationId')) {
+    http_response_code(400);
+    echo "incorrect station id";
+    exit();
+  }
+
   $dbdata = array('request_body' => $request->get_body());
 
   # Record but don't relay requests with "norelay" param to avoid recursion.
@@ -261,10 +284,9 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
     exit();
   }
 
-  $zapsters_options = get_option( 'zapsters_options' );
   $post_args = array('body' => $request->get_body() . "&norelay");
 
-  $primary_url = $zapsters_options[ 'zapsters_field_relay_primary' ];
+  $primary_url = $options[ 'zapsters_field_relay_primary' ];
   if (strlen($primary_url) > 0) {
     $response = wp_remote_post($primary_url, $post_args);
     if (is_wp_error($response)) {
@@ -279,7 +301,7 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
     }
   }
 
-  $besteffort_url = $zapsters_options[ 'zapsters_field_relay_besteffort' ];
+  $besteffort_url = $options[ 'zapsters_field_relay_besteffort' ];
   if (strlen($besteffort_url) > 0) {
     $besteffort_response = wp_remote_post($besteffort_url, $post_args);
     if (is_wp_error($besteffort_response)) {
