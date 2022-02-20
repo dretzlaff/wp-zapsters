@@ -291,6 +291,11 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
   }
 
   $wpdb->insert(zapsters_zapdata_table_name(), $dbdata);
+
+  # Only keep 1 year of data to limit database size.
+  $delete_sql = "DELETE FROM " . zapsters_zapdata_table_name();
+  $delete_sql .= " WHERE time < DATE_SUB(NOW(), INTERVAL 1 YEAR)";
+  $wpdb->query($delete_sql);
   exit();
 }
 add_action( 'rest_api_init', function () {
