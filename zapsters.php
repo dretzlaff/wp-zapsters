@@ -87,38 +87,25 @@ function zapsters_settings_init() {
     'zapsters_section_options_cb',
     'zapsters'
   );
+  zapsters_add_text_setting('zapsters_field_relay_primary', __('Primary'));
+  zapsters_add_text_setting('zapsters_field_relay_besteffort', __('Best Effort'));
+  zapsters_add_text_setting('zapsters_field_require_station', __('Require Station ID'));
+}
+add_action( 'admin_init', 'zapsters_settings_init' );
+
+function zapsters_add_text_setting( $id, $title ) {
   add_settings_field(
-    'zapsters_field_relay_primary', __( 'Primary' ),
+    $id,
+    $title,
     'zapsters_field_text_cb',
     'zapsters',
     'zapsters_section_relay',
     array(
-      'label_for' => 'zapsters_field_relay_primary',
-      'class' => 'wporg_row',
-    )
-  );
-  add_settings_field(
-    'zapsters_field_relay_besteffort', __( 'Best Effort' ),
-    'zapsters_field_text_cb',
-    'zapsters',
-    'zapsters_section_relay',
-    array(
-      'label_for' => 'zapsters_field_relay_besteffort',
-      'class' => 'wporg_row',
-    )
-  );
-  add_settings_field(
-    'zapsters_field_require_station', __( 'Require Station ID' ),
-    'zapsters_field_text_cb',
-    'zapsters',
-    'zapsters_section_relay',
-    array(
-      'label_for' => 'zapsters_field_require_station',
+      'label_for' => $id,
       'class' => 'wporg_row',
     )
   );
 }
-add_action( 'admin_init', 'zapsters_settings_init' );
 
 function zapsters_field_text_cb( $args ) {
   $id = $args['label_for'];
@@ -287,7 +274,7 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
   $post_args = array('body' => $request->get_body() . "&norelay");
 
   $primary_url = $options[ 'zapsters_field_relay_primary' ];
-  if (strlen($primary_url) > 0) {
+  if (!empty($primary_url)) {
     $response = wp_remote_post($primary_url, $post_args);
     if (is_wp_error($response)) {
       http_response_code(500);
@@ -302,7 +289,7 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
   }
 
   $besteffort_url = $options[ 'zapsters_field_relay_besteffort' ];
-  if (strlen($besteffort_url) > 0) {
+  if (!empty($besteffort_url)) {
     $besteffort_response = wp_remote_post($besteffort_url, $post_args);
     if (is_wp_error($besteffort_response)) {
       $dbdata['besteffort_response_body'] = 'WP_Error: ' . $response->get_error_message();
