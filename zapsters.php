@@ -9,9 +9,15 @@
  */
 
 define('ZAPSTERS_NAMESPACE', 'zapsters/v1');
-define('ZAPSTERS_ZAPDATA', 'zapdata');
-define('ZAPSTERS_RAWDATA', 'rawdata');
+define('ZAPSTERS_ROUTE', 'zapdata');
 define('ZAPSTERS_DB_VERSION', '0.5');
+
+/**************************************************
+ * Database and options setup and teardown.
+ *
+ * https://developer.wordpress.org/reference/classes/wpdb/
+ * https://developer.wordpress.org/plugins/settings/options-api/
+ */
 
 function zapsters_activate() {
   add_option('zapsters_options');
@@ -59,6 +65,20 @@ function zapsters_uninstall() {
 }
 register_uninstall_hook( __FILE__, 'zapsters_uninstall' );
 
+/**************************************************
+ * HTML rendering for Tools -> Zapsters admin page.
+ *
+ * https://developer.wordpress.org/themes/basics/including-css-javascript/
+ * https://developer.wordpress.org/plugins/settings/settings-api/
+ */
+
+function zapsters_enqueue_style($hook) {
+  if (strpos($hook, 'zapsters')) {
+    wp_enqueue_style( 'zapsters_style', plugin_dir_url( __FILE__ ) . 'zapsters.css' );
+  }
+}
+add_action( 'admin_enqueue_scripts', 'zapsters_enqueue_style' );
+
 function zapsters_settings_init() {
   register_setting( 'zapsters', 'zapsters_options' );
   add_settings_section(
@@ -101,14 +121,10 @@ function zapsters_field_relay_cb( $args) {
   <?php
 }
 
-function zapsters_endpoint($route) {
-  return site_url() . '/' . rest_get_url_prefix() . '/' . ZAPSTERS_NAMESPACE . '/' . $route;
-}
-
 function zapsters_section_options_cb( $args ) {
   ?><p id="<?php echo esc_attr( $args['id'] ); ?>">
     This plugin has a URL for receiving DeroZap POST notifications at
-    <a href="<?php echo zapsters_endpoint(ZAPSTERS_ZAPDATA); ?>"><?php echo zapsters_endpoint(ZAPSTERS_ZAPDATA) ?></a>.
+    <a href="<?php echo zapsters_endpoint(); ?>"><?php echo zapsters_endpoint() ?></a>.
     It relays these notifications to the endpoint(s) configured here. The primary
     endpoint's response will be returned to the DeroZap box (so errors can be retried),
     and the best effort endpoint's response will simply be logged.
@@ -124,18 +140,15 @@ function zapsters_format_range($array) {
   return min($array) . " - " . max($array);
 }
 
-function zapsters_enqueue_style($hook) {
-  if (strpos($hook, 'zapsters')) {
-    wp_enqueue_style( 'zapsters_style', plugin_dir_url( __FILE__ ) . 'zapsters.css' );
-  }
+function zapsters_endpoint() {
+  return site_url() . '/' . rest_get_url_prefix() . '/' . ZAPSTERS_NAMESPACE . '/' . ZAPSTERS_ROUTE;
 }
-add_action( 'admin_enqueue_scripts', 'zapsters_enqueue_style' );
 
 function zapsters_page_html() {
   if (!current_user_can('manage_options')) {
     return;
   }
-  if ( isset( $_GET['settings-updated'] ) ) {
+  if (isset( $_GET['settings-updated'] )) {
     add_settings_error( 
       'zapsters_messages',
       'zapster_message',
@@ -143,10 +156,12 @@ function zapsters_page_html() {
       'updated' );
   }
   settings_errors( 'zapsters_messages' );
+  $raw_url = zapsters_endpoint(ZAPSTERS_ROUTE) . "?max_count=10";
+  $raw_url = wp_nonce_url( $raw_url, 'wp_rest' );
   ?>
   <div class="wrap">
       <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
-      <h2>Recent Zap Data (<a href="<?php echo zapsters_endpoint(ZAPSTERS_RAWDATA); ?>?max_count=10&from_id=-1">raw</a>)</h2>
+      <h2>Recent Zap Data (<a href="<?php echo $raw_url ?>">raw</a>)</h2>
       <table id="zapdata">
         <tr>
           <th>ID</th>
@@ -210,11 +225,35 @@ function zapsters_page() {
 }
 add_action('admin_menu', 'zapsters_page');
 
+/**************************************************
+ * REST endpoint for recording and serving zap data.
+ *
+ * https://developer.wordpress.org/rest-api/extending-the-rest-api/adding-custom-endpoints/
+ * https://developer.wordpress.org/rest-api/using-the-rest-api/authentication/
+ */
+
 function zapsters_zapdata_request( WP_REST_Request $request ) {
   global $wpdb;
+
+  # Show a raw data dump in JSON.
+  if ($request->get_method() == "GET") {
+    if ( !is_user_logged_in() ) {
+      http_response_code(401);
+      echo "not logged in";
+    }
+    $sql = "SELECT * FROM " . zapsters_zapdata_table_name() . " ORDER BY id DESC";
+    $maxCount = $request->get_param('max_count');
+    if ($maxCount > 0) $sql .= " LIMIT " . intval($maxCount);
+
+    foreach ($wpdb->get_results($sql) as $row) {
+      print json_encode($row, JSON_PRETTY_PRINT);
+    }
+    exit();
+  }
+
   $dbdata = array('request_body' => $request->get_body());
 
-  # We add an extra "norelay" param to relayed requests to avoid recursion. 
+  # Record but don't relay requests with "norelay" param to avoid recursion.
   if ($request->has_param('norelay')) {
     http_response_code(200);
     echo "ignoring request with norelay param\n";
@@ -254,28 +293,13 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
   $wpdb->insert(zapsters_zapdata_table_name(), $dbdata);
   exit();
 }
-function zapsters_rawdata_request( WP_REST_Request $request ) {
-  $sql = "SELECT * FROM " . zapsters_zapdata_table_name();
-  $fromId = $request->get_param('from_id');
-  if ($fromId > 0) $sql .= " WHERE id < " . intval($fromId);
-  $sql .= " ORDER BY id DESC";
-  $maxCount = $request->get_param('max_count');
-  if ($maxCount > 0) $sql .= " LIMIT " . intval($maxCount);
-
-  global $wpdb;
-  foreach ($wpdb->get_results($sql) as $row) {
-    print json_encode($row, JSON_PRETTY_PRINT);
-  }
-  exit();
-}
 add_action( 'rest_api_init', function () {
-  register_rest_route( ZAPSTERS_NAMESPACE, ZAPSTERS_ZAPDATA, array(
-    'methods' => array('POST'),
+  register_rest_route( ZAPSTERS_NAMESPACE, ZAPSTERS_ROUTE, array(
+    'methods' => array('POST', 'GET'),
     'callback' => 'zapsters_zapdata_request',
-  ) );
-  register_rest_route( ZAPSTERS_NAMESPACE, ZAPSTERS_RAWDATA, array(
-    'methods' => array('GET'),
-    'callback' => 'zapsters_rawdata_request',
+    'permission_callback' => function( $request ) {
+      return current_user_can("manage_options") || $request->get_method() == "POST";
+    },
   ) );
 } );
 
