@@ -5,7 +5,7 @@
  *
  * Description: Relays DeroZap notifications to one or more endpoints.
  * Author: <a href="mailto:dretzlaff@gmail.com">Dan Retzlaff</a>
- * Version: 0.3
+ * Version: 0.4
  */
 
 define('ZAPSTERS_NAMESPACE', 'zapsters/v1');
