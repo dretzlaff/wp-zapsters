@@ -25,7 +25,7 @@ function zapsters_activate() {
 }
 register_activation_hook( __FILE__, 'zapsters_activate' );
 
-function zapsters_zapdata_table_name() {
+function zapsters_table() {
   global $wpdb;
   return $wpdb->prefix . 'zapsters_zapdata';
 }
@@ -37,7 +37,7 @@ function zapsters_dbsetup() {
   }
 
   global $wpdb;
-  $table_name = zapsters_zapdata_table_name();
+  $table_name = zapsters_table();
   $charset_collate = $wpdb->get_charset_collate();
 
   $sql = "CREATE TABLE $table_name (
@@ -60,7 +60,7 @@ add_action( 'plugins_loaded', 'zapsters_dbsetup' );
 
 function zapsters_uninstall() {
   global $wpdb;
-  $wpdb->query("DROP TABLE IF EXISTS " . zapsters_zapdata_table_name());
+  $wpdb->query("DROP TABLE IF EXISTS " . zapsters_table());
   delete_option('zapsters_options');
 }
 register_uninstall_hook( __FILE__, 'zapsters_uninstall' );
@@ -145,6 +145,13 @@ function zapsters_endpoint() {
   return site_url() . '/' . rest_get_url_prefix() . '/' . ZAPSTERS_NAMESPACE . '/' . ZAPSTERS_ROUTE;
 }
 
+function zapsters_zapdata_rows( $row_count = -1 ) {
+  $sql = "SELECT * FROM " . zapsters_table() . " ORDER BY id DESC";
+  if ($row_count > 0) $sql .= " LIMIT $row_count";
+  global $wpdb;
+  return $wpdb->get_results($sql);
+}
+
 function zapsters_page_html() {
   if (!current_user_can('manage_options')) {
     return;
@@ -173,10 +180,7 @@ function zapsters_page_html() {
           <th>Zaps</th>
         </tr>
         <?php
-          global $wpdb;
-          $sql = 
-            "SELECT * FROM " . zapsters_zapdata_table_name() . " ORDER BY id DESC LIMIT 10";
-          foreach ($wpdb->get_results($sql) as $row) {
+          foreach (zapsters_zapdata_rows(10) as $row) {
             $parsed = array();
             $voltages = array();
             $dateTimes = array();
@@ -243,11 +247,8 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
       http_response_code(401);
       echo "not logged in";
     }
-    $sql = "SELECT * FROM " . zapsters_zapdata_table_name() . " ORDER BY id DESC";
     $maxCount = $request->get_param('max_count');
-    if ($maxCount > 0) $sql .= " LIMIT " . intval($maxCount);
-
-    foreach ($wpdb->get_results($sql) as $row) {
+    foreach (zapsters_zapdata_rows(intval($maxCount)) as $row) {
       print json_encode($row, JSON_PRETTY_PRINT);
     }
     exit();
@@ -267,7 +268,7 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
   if ($request->has_param('norelay')) {
     http_response_code(200);
     echo "ignoring request with norelay param\n";
-    $wpdb->insert(zapsters_zapdata_table_name(), $dbdata);
+    $wpdb->insert(zapsters_table(), $dbdata);
     exit();
   }
 
@@ -299,10 +300,10 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
     }
   }
 
-  $wpdb->insert(zapsters_zapdata_table_name(), $dbdata);
+  $wpdb->insert(zapsters_table(), $dbdata);
 
   # Only keep 1 year of data to limit database size.
-  $delete_sql = "DELETE FROM " . zapsters_zapdata_table_name();
+  $delete_sql = "DELETE FROM " . zapsters_table();
   $delete_sql .= " WHERE time < DATE_SUB(NOW(), INTERVAL 1 YEAR)";
   $wpdb->query($delete_sql);
   exit();
