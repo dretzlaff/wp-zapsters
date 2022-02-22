@@ -6,12 +6,12 @@
  * Description: Relays DeroZap notifications to one or more endpoints.
  * Author: <a href="mailto:dretzlaff@gmail.com">Dan Retzlaff</a>
  * Plugin URI: https://github.com/dretzlaff/wp-zapsters 
- * Version: 0.5
+ * Version: 0.6
  */
 
 define('ZAPSTERS_NAMESPACE', 'zapsters/v1');
 define('ZAPSTERS_ROUTE', 'zapdata');
-define('ZAPSTERS_DB_VERSION', '0.5');
+define('ZAPSTERS_DB_VERSION', '0.6');
 
 # DeroZap box reports epoch seconds in this timezone. We also show all times
 # in this timezone, regardless of WordPress or system timezone settings.
@@ -45,9 +45,16 @@ function zapsters_dbsetup() {
   $table_name = zapsters_table();
   $charset_collate = $wpdb->get_charset_collate();
 
+  # Note that request_time must be populated in local time at the time of insertion,
+  # i.e. current_time('mysql'). The ROCV database timezone seems to be US/Eastern,
+  # and MySQL's timezone table isn't populated so using DEFAULT CURRENT_TIMESTAMP is
+  # complicated. This approach removes any database setup or timezone dependency. A
+  # more robust but slightly more complicated solution would be inserting GMT and
+  # adapting to wp_timezone() during display.
+
   $sql = "CREATE TABLE $table_name (
     id mediumint(9) NOT NULL AUTO_INCREMENT,
-    request_time timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    request_time timestamp NOT NULL,
     request_body mediumtext,
     response_code smallint,
     response_body mediumtext,
@@ -152,8 +159,7 @@ function zapsters_endpoint() {
 
 function zapsters_zapdata_rows( $row_count = -1 ) {
   # The custom "request_time" overwrites the one from "*" which uses the system timezone.
-  $sql = "SELECT *, CONVERT_TZ(request_time, 'SYSTEM', '" . ZAPSTERS_TIMEZONE . "') request_time "
-       . "FROM " . zapsters_table() . " ORDER BY id DESC";
+  $sql = "SELECT * FROM " . zapsters_table() . " ORDER BY id DESC";
   if ($row_count > 0) $sql .= " LIMIT " . intval($row_count); # intval to sanitize
   global $wpdb;
   return $wpdb->get_results($sql);
@@ -267,7 +273,10 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
     exit();
   }
 
-  $dbdata = array('request_body' => $request->get_body());
+  $dbdata = array(
+    'request_time' => current_time('mysql'),
+    'request_body' => $request->get_body(),
+  );
 
   # Record but don't relay requests with "norelay" param to avoid recursion.
   if ($request->has_param('norelay')) {
