@@ -6,12 +6,16 @@
  * Description: Relays DeroZap notifications to one or more endpoints.
  * Author: <a href="mailto:dretzlaff@gmail.com">Dan Retzlaff</a>
  * Plugin URI: https://github.com/dretzlaff/wp-zapsters 
- * Version: 0.4
+ * Version: 0.5
  */
 
 define('ZAPSTERS_NAMESPACE', 'zapsters/v1');
 define('ZAPSTERS_ROUTE', 'zapdata');
 define('ZAPSTERS_DB_VERSION', '0.5');
+
+# DeroZap box reports epoch seconds in this timezone. We also show all times
+# in this timezone, regardless of WordPress or system timezone settings.
+define('ZAPSTERS_TIMEZONE', 'America/Denver');
 
 /**************************************************
  * Database and options setup and teardown.
@@ -33,7 +37,7 @@ function zapsters_table() {
 
 function zapsters_dbsetup() {
   $current_version = get_option('zapsters_db_version');
-  if ($current_verison == ZAPSTERS_DB_VERSION) {
+  if ($current_version == ZAPSTERS_DB_VERSION) {
     return;
   }
 
@@ -147,7 +151,9 @@ function zapsters_endpoint() {
 }
 
 function zapsters_zapdata_rows( $row_count = -1 ) {
-  $sql = "SELECT * FROM " . zapsters_table() . " ORDER BY id DESC";
+  # The custom "request_time" overwrites the one from "*" which uses the system timezone.
+  $sql = "SELECT *, CONVERT_TZ(request_time, 'SYSTEM', '" . ZAPSTERS_TIMEZONE . "') request_time "
+       . "FROM " . zapsters_table() . " ORDER BY id DESC";
   if ($row_count > 0) $sql .= " LIMIT " . intval($row_count); # intval to sanitize
   global $wpdb;
   return $wpdb->get_results($sql);
@@ -181,6 +187,7 @@ function zapsters_page_html() {
           <th>Zaps</th>
         </tr>
         <?php
+          $zapsters_datetimezone = new DateTimeZone(ZAPSTERS_TIMEZONE);
           foreach (zapsters_zapdata_rows(10) as $row) {
             $parsed = array();
             $voltages = array();
@@ -189,11 +196,11 @@ function zapsters_page_html() {
             $statusEventCount = intval( $parsed['statusEventCount'] ?? "0" );
             $bikeEventCount = intval( $parsed['bikeEventCount'] ?? "0" );
             for ($i = 0; $i < $statusEventCount; $i++) {
-              $dateTimes[] = date("h:i:s", intval( $parsed['DateTime' . $i] ));
+              $dateTimes[] = wp_date("H:i:s", intval( $parsed['DateTime' . $i] ), $zapsters_datetimezone);
               $voltages[] = floatval( $parsed['BatteryVoltage' . $i] );
             }
             for ($i = 0; $i < $bikeEventCount; $i++) {
-              $dateTimes[] = date("h:i:s", intval( $parsed['BikeDateTime' . $i] ));
+              $dateTimes[] = wp_date("H:i:s", intval( $parsed['BikeDateTime' . $i] ), $zapsters_datetimezone);
             }
             ?>
             <tr>
