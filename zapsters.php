@@ -289,7 +289,7 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
 
   $post_args = array('body' => $request->get_body() . "&norelay");
 
-  $primary_url = $options[ 'zapsters_field_relay_primary' ];
+  $primary_url = $options[ 'zapsters_field_relay_primary' ] ?? "";
   if (!empty($primary_url)) {
     $response = wp_remote_post($primary_url, $post_args);
     if (is_wp_error($response)) {
@@ -304,7 +304,7 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
     }
   }
 
-  $besteffort_url = $options[ 'zapsters_field_relay_besteffort' ];
+  $besteffort_url = $options[ 'zapsters_field_relay_besteffort' ] ?? "";
   if (!empty($besteffort_url)) {
     $besteffort_response = wp_remote_post($besteffort_url, $post_args);
     if (is_wp_error($besteffort_response)) {
