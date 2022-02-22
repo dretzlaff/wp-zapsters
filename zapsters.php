@@ -6,12 +6,12 @@
  * Description: Relays DeroZap notifications to one or more endpoints.
  * Author: <a href="mailto:dretzlaff@gmail.com">Dan Retzlaff</a>
  * Plugin URI: https://github.com/dretzlaff/wp-zapsters 
- * Version: 0.6
+ * Version: 0.8
  */
 
 define('ZAPSTERS_NAMESPACE', 'zapsters/v1');
 define('ZAPSTERS_ROUTE', 'zapdata');
-define('ZAPSTERS_DB_VERSION', '0.6');
+define('ZAPSTERS_DB_VERSION', '0.8');
 
 # DeroZap box reports epoch seconds in this timezone. We also show all times
 # in this timezone, regardless of WordPress or system timezone settings.
@@ -74,6 +74,7 @@ function zapsters_uninstall() {
   global $wpdb;
   $wpdb->query("DROP TABLE IF EXISTS " . zapsters_table());
   delete_option('zapsters_options');
+  delete_option('zapsters_db_version');
 }
 register_uninstall_hook( __FILE__, 'zapsters_uninstall' );
 
