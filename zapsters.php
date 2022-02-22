@@ -6,7 +6,7 @@
  * Description: Relays DeroZap notifications to one or more endpoints.
  * Author: <a href="mailto:dretzlaff@gmail.com">Dan Retzlaff</a>
  * Plugin URI: https://github.com/dretzlaff/wp-zapsters 
- * Version: 0.8
+ * Version: 0.9
  */
 
 define('ZAPSTERS_NAMESPACE', 'zapsters/v1');
