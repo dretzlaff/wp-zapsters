@@ -13,8 +13,7 @@ define('ZAPSTERS_NAMESPACE', 'zapsters/v1');
 define('ZAPSTERS_ROUTE', 'zapdata');
 define('ZAPSTERS_DB_VERSION', '0.8');
 
-# DeroZap box reports epoch seconds in this timezone. We also show all times
-# in this timezone, regardless of WordPress or system timezone settings.
+# DeroZap box reports epoch seconds in this timezone. 
 define('ZAPSTERS_TIMEZONE', 'America/Denver');
 
 /**************************************************
@@ -308,7 +307,7 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
   if (!empty($besteffort_url)) {
     $besteffort_response = wp_remote_post($besteffort_url, $post_args);
     if (is_wp_error($besteffort_response)) {
-      $dbdata['besteffort_response_body'] = 'WP_Error: ' . $response->get_error_message();
+      $dbdata['besteffort_response_body'] = 'WP_Error: ' . $besteffort_response->get_error_message();
     } else {
       $dbdata['besteffort_response_code'] = $besteffort_response['response']['code'];
       $dbdata['besteffort_response_body'] = $besteffort_response['body'];
@@ -318,6 +317,7 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
   $wpdb->insert(zapsters_table(), $dbdata);
 
   # Only keep 1 year of data to limit database size.
+  # This ignores the NOW() vs request_time timezone inconsistency.
   $delete_sql = "DELETE FROM " . zapsters_table();
   $delete_sql .= " WHERE request_time < DATE_SUB(NOW(), INTERVAL 1 YEAR)";
   $wpdb->query($delete_sql);
