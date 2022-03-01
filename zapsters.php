@@ -334,6 +334,11 @@ function zapsters_post( $url, $request_body ) {
   } else {
     $response_code = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
   }
+  # A missing Apps Script permission returns 200 with a big error HTML page.
+  # Let's make sure these kinds of thing don't return 200 back to the box.
+  if ($response_code == 200 && strpos($response_body, 'error')) {
+    $response_code = 500;
+  }
   curl_close($ch);
   return array('body' => $response_body, 'code' => $response_code);
 }
