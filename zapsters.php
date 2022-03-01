@@ -6,7 +6,7 @@
  * Description: Relays DeroZap notifications to one or more endpoints.
  * Author: <a href="mailto:dretzlaff@gmail.com">Dan Retzlaff</a>
  * Plugin URI: https://github.com/dretzlaff/wp-zapsters 
- * Version: 0.10
+ * Version: 0.11
  */
 
 define('ZAPSTERS_NAMESPACE', 'zapsters/v1');
@@ -286,32 +286,22 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
     exit();
   }
 
-  $post_args = array('body' => $request->get_body() . "&norelay");
+  $relay_body = $request->get_body() . "&norelay";
 
   $primary_url = $options[ 'zapsters_field_relay_primary' ] ?? "";
   if (!empty($primary_url)) {
-    $response = wp_remote_post($primary_url, $post_args);
-    if (is_wp_error($response)) {
-      http_response_code(500);
-      $dbdata['response_body'] = 'WP_Error: ' . $response->get_error_message();
-    } else {
-      $response_code = $response['response']['code'];
-      http_response_code($response_code);
-      echo $response['body'];
-      $dbdata['response_code'] = $response_code;
-      $dbdata['response_body'] = $response['body'];
-    }
+    $response = zapsters_post($primary_url, $relay_body);
+    $dbdata['response_code'] = $response['code'];
+    $dbdata['response_body'] = $response['body'];
+    http_response_code($response['code']);
+    echo $response['body'];
   }
 
   $besteffort_url = $options[ 'zapsters_field_relay_besteffort' ] ?? "";
   if (!empty($besteffort_url)) {
-    $besteffort_response = wp_remote_post($besteffort_url, $post_args);
-    if (is_wp_error($besteffort_response)) {
-      $dbdata['besteffort_response_body'] = 'WP_Error: ' . $besteffort_response->get_error_message();
-    } else {
-      $dbdata['besteffort_response_code'] = $besteffort_response['response']['code'];
-      $dbdata['besteffort_response_body'] = $besteffort_response['body'];
-    }
+    $besteffort_response = zapsters_post($besteffort_url, $relay_body);
+    $dbdata['besteffort_response_code'] = $besteffort_response['code'];
+    $dbdata['besteffort_response_body'] = $besteffort_response['body'];
   }
 
   $wpdb->insert(zapsters_table(), $dbdata);
@@ -322,6 +312,30 @@ function zapsters_zapdata_request( WP_REST_Request $request ) {
   $delete_sql .= " WHERE request_time < DATE_SUB(NOW(), INTERVAL 1 YEAR)";
   $wpdb->query($delete_sql);
   exit();
+}
+
+/**
+ * wp_remote_post() loses its mind on the 302 redirect resulting in a 400 response.
+ * Having cURL (used by wp_remote_post() internally) follow the redirect itself
+ * works fine, so that's what we do.
+ */
+function zapsters_post( $url, $request_body ) {
+  $ch = curl_init($url);
+  curl_setopt_array($ch, array(
+    CURLOPT_POST => 1,
+    CURLOPT_POSTFIELDS => $request_body,
+    CURLOPT_FOLLOWLOCATION => 1,
+    CURLOPT_RETURNTRANSFER => 1,
+  ));
+  $response_body = curl_exec($ch);
+  if (curl_errno($ch)) {
+    $response_body = curl_error($ch);
+    $response_code = 500;
+  } else {
+    $response_code = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+  }
+  curl_close($ch);
+  return array('body' => $response_body, 'code' => $response_code);
 }
 add_action( 'rest_api_init', function () {
   register_rest_route( ZAPSTERS_NAMESPACE, ZAPSTERS_ROUTE, array(
