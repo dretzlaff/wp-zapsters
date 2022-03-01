@@ -147,18 +147,11 @@ function zapsters_section_options_cb( $args ) {
   <?php
 }
 
-function zapsters_format_range( $array ) {
-  if (count($array) == 0) return "";
-  if (count($array) == 1) return $array[0];
-  return min($array) . " - " . max($array);
-}
-
 function zapsters_endpoint() {
   return site_url() . '/' . rest_get_url_prefix() . '/' . ZAPSTERS_NAMESPACE . '/' . ZAPSTERS_ROUTE;
 }
 
 function zapsters_zapdata_rows( $row_count = -1 ) {
-  # The custom "request_time" overwrites the one from "*" which uses the system timezone.
   $sql = "SELECT * FROM " . zapsters_table() . " ORDER BY id DESC";
   if ($row_count > 0) $sql .= " LIMIT " . intval($row_count); # intval to sanitize
   global $wpdb;
@@ -187,33 +180,31 @@ function zapsters_page_html() {
         <tr>
           <th>ID</th>
           <th>Request Time</th>
-          <th>Event Times</th>
-          <th>Battery Voltages</th>
-          <th>Status Events</th>
-          <th>Zaps</th>
+          <th>First Event</th>
+          <th>Last Event</th>
+          <th>Status Count</th>
+          <th>Zap Count</th>
         </tr>
         <?php
           $zapsters_datetimezone = new DateTimeZone(ZAPSTERS_TIMEZONE);
           foreach (zapsters_zapdata_rows(10) as $row) {
             $parsed = array();
-            $voltages = array();
-            $dateTimes = array();
             parse_str($row->request_body, $parsed);
+            $eventTimes = array();
             $statusEventCount = intval( $parsed['statusEventCount'] ?? "0" );
             $bikeEventCount = intval( $parsed['bikeEventCount'] ?? "0" );
             for ($i = 0; $i < $statusEventCount; $i++) {
-              $dateTimes[] = wp_date("H:i:s", intval( $parsed['DateTime' . $i] ), $zapsters_datetimezone);
-              $voltages[] = floatval( $parsed['BatteryVoltage' . $i] );
+              $eventTimes[] = wp_date("Y-m-d H:i:s", intval( $parsed['DateTime' . $i] ), $zapsters_datetimezone);
             }
             for ($i = 0; $i < $bikeEventCount; $i++) {
-              $dateTimes[] = wp_date("H:i:s", intval( $parsed['BikeDateTime' . $i] ), $zapsters_datetimezone);
+              $eventTimes[] = wp_date("Y-m-d H:i:s", intval( $parsed['BikeDateTime' . $i] ), $zapsters_datetimezone);
             }
             ?>
             <tr>
               <td><?php echo $row->id; ?></td>
               <td><?php echo $row->request_time; ?></td>
-              <td><?php echo zapsters_format_range($dateTimes); ?></td>
-              <td><?php echo zapsters_format_range($voltages); ?></td>
+              <td><?php if (count($eventTimes) > 0) echo min($eventTimes); ?></td>
+              <td><?php if (count($eventTimes) > 1) echo max($eventTimes); ?></td>
               <td><?php echo $statusEventCount; ?></td>
               <td><?php echo $bikeEventCount; ?></td>
             </tr>
