@@ -10,7 +10,8 @@
  */
 
 define('ZAPSTERS_NAMESPACE', 'zapsters/v1');
-define('ZAPSTERS_ROUTE', 'zapdata');
+define('ZAPSTERS_DATA_ROUTE', 'zapdata');
+define('ZAPSTERS_MAIL_ROUTE', 'mail');
 define('ZAPSTERS_DB_VERSION', '0.8');
 
 # DeroZap box reports epoch seconds in this timezone. 
@@ -102,6 +103,17 @@ function zapsters_settings_init() {
   zapsters_add_text_setting('zapsters_field_relay_primary', __('Primary'));
   zapsters_add_text_setting('zapsters_field_relay_besteffort', __('Best Effort'));
   zapsters_add_text_setting('zapsters_field_require_station', __('Require Station ID'));
+  add_settings_field(
+    'zapsters_field_mail_relay', 
+    __('Email Subscription Relay'),
+    'zapsters_field_drop_cb',
+    'zapsters',
+    'zapsters_section_relay',
+    array(
+      'label_for' => 'zapsters_field_mail_relay',
+      'class' => 'wporg_row'
+    )
+  );
 }
 add_action( 'admin_init', 'zapsters_settings_init' );
 
@@ -117,6 +129,19 @@ function zapsters_add_text_setting( $id, $title ) {
       'class' => 'wporg_row',
     )
   );
+}
+
+function zapsters_field_drop_cb( $args ) {
+  $id = $args['label_for'];
+  $esc_id = esc_attr( $id );
+  $value = get_option( 'zapsters_options' )[$id] ?? "none";
+  ?>
+  <select id="<?= $esc_id ?>" name="zapsters_options[<?= $esc_id ?>]">
+    <option value="none"<?php if ($value == 'none') echo " selected"?>>None</option>
+    <option value="primary"<?php if ($value == 'primary') echo " selected"?>>Primary</option>
+    <option value="besteffort"<?php if ($value == 'besteffort') echo " selected"?>>Best Effort</option>
+  </select>
+  <?php
 }
 
 function zapsters_field_text_cb( $args ) {
@@ -148,7 +173,7 @@ function zapsters_section_options_cb( $args ) {
 }
 
 function zapsters_endpoint() {
-  return site_url() . '/' . rest_get_url_prefix() . '/' . ZAPSTERS_NAMESPACE . '/' . ZAPSTERS_ROUTE;
+  return site_url() . '/' . rest_get_url_prefix() . '/' . ZAPSTERS_NAMESPACE . '/' . ZAPSTERS_DATA_ROUTE;
 }
 
 function zapsters_zapdata_rows( $row_count = -1 ) {
@@ -170,7 +195,7 @@ function zapsters_page_html() {
       'updated' );
   }
   settings_errors( 'zapsters_messages' );
-  $raw_url = zapsters_endpoint(ZAPSTERS_ROUTE) . "?max_count=10";
+  $raw_url = zapsters_endpoint(ZAPSTERS_DATA_ROUTE) . "?max_count=10";
   $raw_url = wp_nonce_url( $raw_url, 'wp_rest' );
   ?>
   <div class="wrap">
@@ -333,13 +358,26 @@ function zapsters_post( $url, $request_body ) {
   curl_close($ch);
   return array('body' => $response_body, 'code' => $response_code);
 }
+
+function zapsters_mail_request( WP_REST_Request $request ) {
+  print_r($request);
+  exit();
+}
+
 add_action( 'rest_api_init', function () {
-  register_rest_route( ZAPSTERS_NAMESPACE, ZAPSTERS_ROUTE, array(
+  register_rest_route( ZAPSTERS_NAMESPACE, ZAPSTERS_DATA_ROUTE, array(
     'methods' => array('POST', 'GET'),
     'callback' => 'zapsters_zapdata_request',
     'permission_callback' => function( $request ) {
       return current_user_can("manage_options") || $request->get_method() == "POST";
     },
+  ) );
+} );
+
+add_action( 'rest_api_init', function () {
+  register_rest_route( ZAPSTERS_NAMESPACE, ZAPSTERS_MAIL_ROUTE, array(
+    'methods' => array('POST', 'GET'),
+    'callback' => 'zapsters_mail_request',
   ) );
 } );
 
