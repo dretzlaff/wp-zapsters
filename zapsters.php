@@ -6,7 +6,7 @@
  * Description: Relays DeroZap notifications to one or more endpoints.
  * Author: <a href="mailto:dretzlaff@gmail.com">Dan Retzlaff</a>
  * Plugin URI: https://github.com/dretzlaff/wp-zapsters 
- * Version: 0.11
+ * Version: 0.12
  */
 
 define('ZAPSTERS_NAMESPACE', 'zapsters/v1');
@@ -270,7 +270,7 @@ add_action('admin_menu', 'zapsters_add_page');
 
 function zapsters_zapdata_request( WP_REST_Request $request ) {
   global $wpdb;
-  $options = get_option( 'zapsters_options' );
+  $options = get_option('zapsters_options');
 
   # Show a raw data dump in JSON.
   if ($request->get_method() == "GET") {
@@ -360,7 +360,33 @@ function zapsters_post( $url, $request_body ) {
 }
 
 function zapsters_mail_request( WP_REST_Request $request ) {
-  print_r($request);
+  $options = get_option('zapsters_options');
+  $relay = $options[ 'zapsters_field_mail_relay' ] ?? "none";
+  if ($relay == "none") {
+    echo "subscription relay not configured";
+    exit();
+  }
+  $relay_url = $options[ 'zapsters_field_relay_' . $relay ] ?? "";
+  if ($relay_url == "") {
+    echo "no $relay endpoint configured";
+    exit();
+  }
+  $cid = $request->get_param( 'cid' );
+  if (!$cid) {
+    echo "missing 'cid' parameter";
+    exit();
+  }
+
+  $relay_body = "cid=" . $cid;
+  if ($request->get_param('resub')) {
+    $relay_body .= "&resub=1";
+  }
+
+  $response = zapsters_post( $relay_url, $relay_body );
+
+  http_response_code($response['code']);
+  header("Content-Type: text/html");
+  echo $response['body'];
   exit();
 }
 
