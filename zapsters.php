@@ -137,9 +137,9 @@ function zapsters_field_drop_cb( $args ) {
   $value = get_option( 'zapsters_options' )[$id] ?? "none";
   ?>
   <select id="<?= $esc_id ?>" name="zapsters_options[<?= $esc_id ?>]">
-    <option value="none"<?php if ($value == 'none') echo " selected"?>>None</option>
-    <option value="primary"<?php if ($value == 'primary') echo " selected"?>>Primary</option>
-    <option value="besteffort"<?php if ($value == 'besteffort') echo " selected"?>>Best Effort</option>
+    <option value="none"<?php if ($value == 'none') echo " selected" ?>>None</option>
+    <option value="primary"<?php if ($value == 'primary') echo " selected" ?>>Primary</option>
+    <option value="besteffort"<?php if ($value == 'besteffort') echo " selected" ?>>Best Effort</option>
   </select>
   <?php
 }
@@ -150,16 +150,16 @@ function zapsters_field_text_cb( $args ) {
   $value = get_option( 'zapsters_options' )[$id] ?? "";
   ?>
   <textarea rows="2" cols="70"
-    id="<?php echo $esc_id; ?>"
-    name="zapsters_options[<?php echo $esc_id; ?>]"
-  ><?php echo esc_html( $value );?></textarea>
+    id="<?= $esc_id ?>"
+    name="zapsters_options[<?= $esc_id ?>]"
+  ><?= esc_html( $value ) ?></textarea>
   <?php
 }
 
 function zapsters_section_options_cb( $args ) {
-  ?><p id="<?php echo esc_attr( $args['id'] ); ?>">
+  ?><p id="<?= esc_attr( $args['id'] ) ?>">
     This plugin has a URL for receiving DeroZap POST notifications at
-    <a href="<?php echo zapsters_endpoint(); ?>"><?php echo zapsters_endpoint() ?></a>.  
+    <a href="<?= zapsters_endpoint() ?>"><?= zapsters_endpoint() ?></a>.  
     It relays notifications to the endpoint(s) configured here. The primary endpoint's 
     response will be returned to the DeroZap box (so errors can be retried), and the best 
     effort endpoint's response will simply be recorded.
@@ -199,8 +199,8 @@ function zapsters_page_html() {
   $raw_url = wp_nonce_url( $raw_url, 'wp_rest' );
   ?>
   <div class="wrap">
-      <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
-      <h2>Recent Zap Data (<a href="<?php echo $raw_url ?>">raw</a>)</h2>
+      <h1><?= esc_html( get_admin_page_title() ) ?></h1>
+      <h2>Recent Zap Data (<a href="<?= $raw_url ?>">raw</a>)</h2>
       <table id="zapdata">
         <tr>
           <th>ID</th>
@@ -226,12 +226,12 @@ function zapsters_page_html() {
             }
             ?>
             <tr>
-              <td><?php echo $row->id; ?></td>
-              <td><?php echo $row->request_time; ?></td>
-              <td><?php if (count($eventTimes) > 0) echo min($eventTimes); ?></td>
-              <td><?php if (count($eventTimes) > 1) echo max($eventTimes); ?></td>
-              <td><?php echo $statusEventCount; ?></td>
-              <td><?php echo $bikeEventCount; ?></td>
+              <td><?= $row->id ?></td>
+              <td><?= $row->request_time ?></td>
+              <td><?php if (count($eventTimes) > 0) echo min($eventTimes) ?></td>
+              <td><?php if (count($eventTimes) > 1) echo max($eventTimes) ?></td>
+              <td><?= $statusEventCount ?></td>
+              <td><?= $bikeEventCount ?></td>
             </tr>
             <?php
           }
